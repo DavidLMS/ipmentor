@@ -5,6 +5,7 @@ Gradio UI for IPMentor.
 import gradio as gr
 import json
 from .core import analyze_ip, calculate_subnets
+from .tools import generate_diagram, generate_diagram_mcp
 from .config import APP_NAME
 
 
@@ -55,6 +56,25 @@ def subnet_calculator(network: str, number: str, division_type: str, hosts_per_s
         return json.dumps({"error": str(e)}, indent=2)
 
 
+# MCP API function for diagram generation  
+def generate_diagram_api(ip_network: str, hosts_list: str) -> str:
+    """MCP API wrapper for diagram generation that returns JSON."""
+    return generate_diagram_mcp(ip_network, hosts_list)
+
+
+# Gradio UI wrapper for diagram generation
+def generate_diagram_ui(ip_network: str, hosts_list: str):
+    """Gradio UI wrapper for diagram generation that handles errors gracefully."""
+    try:
+        if not ip_network.strip() or not hosts_list.strip():
+            return None
+        result = generate_diagram(ip_network, hosts_list)
+        return result
+    except Exception as e:
+        # Return None if there's any error - Gradio will handle this gracefully
+        return None
+
+
 def create_interface():
     """Create the Gradio interface."""
     
@@ -85,10 +105,22 @@ def create_interface():
         description="Calculate subnets using different methods"
     )
     
-    # Combine only the MCP tool interfaces
+    diagram_interface = gr.Interface(
+        fn=generate_diagram_ui,
+        api_name="generate_diagram",
+        inputs=[
+            gr.Textbox(label="Network", placeholder="192.168.1.0/24"),
+            gr.Textbox(label="Hosts per Subnet", placeholder="50,20,10,5")
+        ],
+        outputs=gr.Image(label="Network Diagram", type="filepath"),
+        title="Network Diagram Generator",
+        description="Generate network diagrams with SVG output"
+    )
+    
+    # Combine all the MCP tool interfaces
     combined_app = gr.TabbedInterface(
-        [ip_interface, subnet_interface],
-        ["IP Info", "Subnet Calculator"],
+        [ip_interface, subnet_interface, diagram_interface],
+        ["IP Info", "Subnet Calculator", "Network Diagram"],
         title=f"{APP_NAME} - MCP Tools"
     )
     
