@@ -72,7 +72,7 @@ EDGE_STYLE_BASE = (
 )
 
 
-def _generar_diagrama_d2(ip_red: str, hosts_subredes: List[int]) -> str:
+def _generate_basic_d2_diagram(network_ip: str, hosts_per_subnet: List[int]) -> str:
     """Generate basic D2 diagram without styling."""
     lines = [
         "Internet: Cloud",
@@ -80,10 +80,10 @@ def _generar_diagrama_d2(ip_red: str, hosts_subredes: List[int]) -> str:
         "Switch_0: Switch",
         "",
         "Internet -> Router",
-        f'Router -> Switch_0: "{ip_red}"',
+        f'Router -> Switch_0: "{network_ip}"',
         ""
     ]
-    for idx, hosts in enumerate(hosts_subredes, start=1):
+    for idx, hosts in enumerate(hosts_per_subnet, start=1):
         lines += [
             f"Switch_{idx}: Switch",
             f"Host_{idx}: Hosts",
@@ -96,19 +96,19 @@ def _generar_diagrama_d2(ip_red: str, hosts_subredes: List[int]) -> str:
     return "\n".join(lines)
 
 
-def _estilizar_diagrama_d2(diagrama: str) -> str:
+def _style_d2_diagram(diagram: str) -> str:
     """Add styling and icons to D2 diagram."""
     styled = []
-    for line in diagrama.splitlines():
+    for line in diagram.splitlines():
 
         if not line.strip():
             styled.append("")
             continue
 
         # Nodes
-        m_node = re.match(r'^(\w+(?:_\d+)?):\s*(Cloud|Router|Switch|Hosts)\s*$', line.strip())
-        if m_node:
-            name, kind = m_node.groups()
+        node_match = re.match(r'^(\w+(?:_\d+)?):\s*(Cloud|Router|Switch|Hosts)\s*$', line.strip())
+        if node_match:
+            name, kind = node_match.groups()
             styled.append(
                 f"{name}: {kind} {{\n"
                 "  style: {\n"
@@ -121,9 +121,9 @@ def _estilizar_diagrama_d2(diagrama: str) -> str:
             continue
 
         # Edges with labels
-        m_edge_lbl = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?):\s*"([^"]+)"$', line.strip())
-        if m_edge_lbl:
-            src, dst, label = m_edge_lbl.groups()
+        edge_with_label_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?):\s*"([^"]+)"$', line.strip())
+        if edge_with_label_match:
+            src, dst, label = edge_with_label_match.groups()
             styled.append(
                 f'{src} -> {dst}: "{label}" {{\n'
                 f"{EDGE_STYLE_BASE}"
@@ -134,9 +134,9 @@ def _estilizar_diagrama_d2(diagrama: str) -> str:
             continue
 
         # Edges without labels
-        m_edge = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?)$', line.strip())
-        if m_edge:
-            src, dst = m_edge.groups()
+        edge_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?)$', line.strip())
+        if edge_match:
+            src, dst = edge_match.groups()
             styled.append(
                 f"{src} -> {dst}: {{\n"
                 f"{EDGE_STYLE_BASE}"
@@ -150,30 +150,30 @@ def _estilizar_diagrama_d2(diagrama: str) -> str:
     return "\n".join(styled)
 
 
-def _exportar_svg(diagrama_d2: str, salida: str | Path = "diagrama.svg") -> Path:
+def _export_to_svg(d2_diagram: str, output_path: str | Path = "diagram.svg") -> Path:
     """Export D2 diagram to SVG using d2 CLI."""
     if shutil.which("d2") is None:
         raise RuntimeError(
-            "No se encontró el ejecutable 'd2'.\n"
-            "Instálalo desde https://d2lang.com/tour/installation "
-            "o con Homebrew / chocolatey / scoop."
+            "D2 executable not found.\n"
+            "Install it from https://d2lang.com/tour/installation "
+            "or with Homebrew / chocolatey / scoop."
         )
 
-    salida = Path(salida).expanduser().resolve()
+    output_path = Path(output_path).expanduser().resolve()
 
     with tempfile.NamedTemporaryFile("w+", suffix=".d2", delete=False) as tmp:
-        tmp.write(diagrama_d2)
+        tmp.write(d2_diagram)
         tmp.flush()
         tmp_path = Path(tmp.name)
 
     try:
-        cmd = ["d2", str(tmp_path), str(salida)]
+        cmd = ["d2", str(tmp_path), str(output_path)]
         subprocess.run(cmd, check=True)
     finally:
         if tmp_path.exists():
             os.remove(tmp_path)
 
-    return salida
+    return output_path
 
 
 def generate_diagram(ip_network: str, hosts_list: str) -> str:
@@ -195,13 +195,13 @@ def generate_diagram(ip_network: str, hosts_list: str) -> str:
             raise ValueError("No valid host counts provided")
 
         # Generate basic diagram
-        base_diagram = _generar_diagrama_d2(ip_network.strip(), hosts_per_subnet)
+        base_diagram = _generate_basic_d2_diagram(ip_network.strip(), hosts_per_subnet)
         
         # Add styling
-        styled_diagram = _estilizar_diagrama_d2(base_diagram)
+        styled_diagram = _style_d2_diagram(base_diagram)
         
         # Export to SVG
-        output_path = _exportar_svg(styled_diagram, "network_diagram.svg")
+        output_path = _export_to_svg(styled_diagram, "network_diagram.svg")
         
         return str(output_path)
         
@@ -222,7 +222,7 @@ Error: Error occurred: {str(e)[:50]}... {{
 Internet -> Error
 """
         try:
-            error_path = _exportar_svg(error_diagram, "error_diagram.svg")
+            error_path = _export_to_svg(error_diagram, "error_diagram.svg")
             return str(error_path)
         except:
             # If even error diagram fails, return None
@@ -248,13 +248,13 @@ def generate_diagram_mcp(ip_network: str, hosts_list: str) -> str:
             return json.dumps({"error": "No valid host counts provided"}, indent=2)
 
         # Generate basic diagram
-        base_diagram = _generar_diagrama_d2(ip_network.strip(), hosts_per_subnet)
+        base_diagram = _generate_basic_d2_diagram(ip_network.strip(), hosts_per_subnet)
         
         # Add styling
-        styled_diagram = _estilizar_diagrama_d2(base_diagram)
+        styled_diagram = _style_d2_diagram(base_diagram)
         
         # Export to SVG
-        output_path = _exportar_svg(styled_diagram, "network_diagram.svg")
+        output_path = _export_to_svg(styled_diagram, "network_diagram.svg")
         
         result = {
             "success": True,

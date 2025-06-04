@@ -29,8 +29,8 @@ python -m ipmentor.main
 
 ### Access
 
-- **Web Interface**: http://localhost:7860
-- **MCP Server**: http://localhost:7860/gradio_api/mcp/sse
+- **Web Interface**: http://localhost:7861
+- **MCP Server**: http://localhost:7861/gradio_api/mcp/sse
 
 ## 🔧 Configuration
 
@@ -38,7 +38,7 @@ Create `.env` file for custom settings:
 
 ```env
 HOST=0.0.0.0
-PORT=7860
+PORT=7861
 DEBUG=false
 MCP_ENABLED=true
 ```
@@ -53,7 +53,7 @@ Add to your Claude Desktop configuration:
 {
   "mcpServers": {
     "ipmentor": {
-      "url": "http://localhost:7860/gradio_api/mcp/sse"
+      "url": "http://localhost:7861/gradio_api/mcp/sse"
     }
   }
 }
@@ -63,6 +63,7 @@ Add to your Claude Desktop configuration:
 
 - **`ip_info`**: Analyze IP addresses with subnet masks
 - **`subnet_calculator`**: Calculate subnets using different methods
+- **`generate_diagram`**: Create visual network diagrams in SVG format
 
 ### Example AI Prompts
 
@@ -77,7 +78,7 @@ Add to your Claude Desktop configuration:
 docker build -t ipmentor .
 
 # Run container
-docker run -p 7860:7860 ipmentor
+docker run -p 7861:7861 ipmentor
 ```
 
 ## 📖 Usage Examples
