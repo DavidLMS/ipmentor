@@ -2,3 +2,4 @@
 .DS_Store
 /experimental
 /bin
+examples/.env

@@ -53,6 +53,15 @@ def safe_json_serialize(obj):
             return {k: safe_json_serialize(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):
             return [safe_json_serialize(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            # For objects with __dict__, try to serialize their attributes
+            return safe_json_serialize(obj.__dict__)
+        elif hasattr(obj, 'dict') and callable(obj.dict):
+            # For Pydantic models or similar
+            return safe_json_serialize(obj.dict())
+        elif hasattr(obj, 'model_dump') and callable(obj.model_dump):
+            # For newer Pydantic models
+            return safe_json_serialize(obj.model_dump())
         else:
             # For complex objects, convert to string
             return str(obj)
@@ -81,7 +90,7 @@ class MCPClientWrapper:
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
         )
-        self.model_name = "google/gemini-2.5-flash-preview-05-20"
+        self.model_name = "mistralai/mistral-small-3.1-24b-instruct"
     
     async def connect_async(self, server_url: str) -> str:
         """Connect to MCP server via SSE"""
@@ -108,12 +117,30 @@ class MCPClientWrapper:
             # Convert tools to OpenAI format
             self.tools = []
             for tool in mcp_tools:
-                # Get input schema safely
-                input_schema = {}
-                if hasattr(tool, 'input_schema'):
-                    input_schema = safe_json_serialize(tool.input_schema)
-                elif hasattr(tool, 'inputSchema'):
-                    input_schema = safe_json_serialize(tool.inputSchema)
+                # Get input schema safely and ensure it's a proper JSON schema
+                input_schema = {"type": "object", "properties": {}, "required": []}
+                
+                try:
+                    # Try different ways to get the schema
+                    schema_obj = None
+                    if hasattr(tool, 'input_schema'):
+                        schema_obj = tool.input_schema
+                    elif hasattr(tool, 'inputSchema'):
+                        schema_obj = tool.inputSchema
+                    elif hasattr(tool, 'args_schema') and tool.args_schema:
+                        # Get schema from Pydantic model
+                        if hasattr(tool.args_schema, 'model_json_schema'):
+                            schema_obj = tool.args_schema.model_json_schema()
+                        elif hasattr(tool.args_schema, 'schema'):
+                            schema_obj = tool.args_schema.schema()
+                    
+                    if schema_obj:
+                        serialized_schema = safe_json_serialize(schema_obj)
+                        if isinstance(serialized_schema, dict):
+                            input_schema = serialized_schema
+                        
+                except Exception as e:
+                    print(f"Warning: Could not serialize schema for {tool.name}: {e}")
                 
                 tool_def = {
                     "type": "function",
@@ -125,6 +152,7 @@ class MCPClientWrapper:
                 }
                 self.tools.append(tool_def)
                 print(f"Tool converted: {tool.name}")
+                print(f"  Schema: {json.dumps(input_schema, indent=2)[:200]}...")
             
             tool_names = [tool["function"]["name"] for tool in self.tools]
             self.connection_status = "Connected"
