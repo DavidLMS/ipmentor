@@ -1,4 +1,15 @@
-# 🌐 IPMentor
+![poster](assets/header.png)
+
+<p align="center">
+  <a href="https://github.com/DavidLMS/ipmentor/pulls">
+    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?longCache=true" alt="Pull Requests">
+  </a>
+  <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg?longCache=true" alt="MIT License">
+    </a>
+</p>
+
+# IPmentor
 
 **IPv4 network analysis and subnetting tutor with MCP server integration**
 
