@@ -5,7 +5,6 @@ Gradio UI for IPMentor.
 import gradio as gr
 import json
 from .tools import generate_diagram as generate_diagram_core, ip_info, subnet_calculator
-from .config import APP_NAME
 
 def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False):
     """
@@ -60,7 +59,7 @@ def create_interface():
             gr.Textbox(label="Network", placeholder="192.168.1.0/24"),
             gr.Textbox(label="Number", placeholder="4"),
             gr.Dropdown(label="Division Type", choices=["max_subnets","max_hosts_per_subnet","vlsm"], value="max_subnets"),
-            gr.Textbox(label="Hosts per Subnet", placeholder="100,50,25,10")
+            gr.Textbox(label="Hosts per Subnet", placeholder="100,50,25,10", value="")
         ],
         outputs=gr.Textbox(label="Calculation Result"),
         title="Subnet Calculator",
@@ -83,11 +82,29 @@ def create_interface():
         description="Generate network diagrams (PNG by default, SVG optional)"
     )
     
-    # Combine all the MCP tool interfaces
-    combined_app = gr.TabbedInterface(
-        [ip_interface, subnet_interface, diagram_interface],
-        ["IP Info", "Subnet Calculator", "Network Diagram"],
-        title=f"{APP_NAME}"
-    )
+    # Create main interface with custom header and description
+    with gr.Blocks() as combined_app:
+        # Header with logo
+        gr.Image("assets/header.png", show_label=False, interactive=False, container=False, height=120)
+        
+        # Description
+        gr.Markdown("""
+        **IPMentor** is a comprehensive IPv4 networking toolkit that provides three powerful tools:
+        
+        - **IP Info**: Analyze IPv4 addresses with subnet masks, supporting decimal, binary, and CIDR formats
+        - **Subnet Calculator**: Calculate subnets using different methods (max subnets, max hosts per subnet, and VLSM)
+        - **Network Diagram**: Generate visual network diagrams with automatic subnet validation
+        
+        Choose a tab below to get started with your networking calculations and visualizations.
+        """)
+        
+        # Tabbed interface
+        with gr.Tabs():
+            with gr.Tab("IP Info"):
+                ip_interface.render()
+            with gr.Tab("Subnet Calculator"):
+                subnet_interface.render()
+            with gr.Tab("Network Diagram"):
+                diagram_interface.render()
     
     return combined_app
