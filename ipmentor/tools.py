@@ -150,8 +150,8 @@ def _style_d2_diagram(diagram: str) -> str:
     return "\n".join(styled)
 
 
-def _export_to_svg(d2_diagram: str, output_path: str | Path = "diagram.svg") -> Path:
-    """Export D2 diagram to SVG using d2 CLI."""
+def _export_to_image(d2_diagram: str, output_path: str | Path = "diagram.png", format: str = "png") -> Path:
+    """Export D2 diagram to PNG or SVG using d2 CLI."""
     if shutil.which("d2") is None:
         raise RuntimeError(
             "D2 executable not found.\n"
@@ -159,7 +159,12 @@ def _export_to_svg(d2_diagram: str, output_path: str | Path = "diagram.svg") -> 
             "or with Homebrew / chocolatey / scoop."
         )
 
+    # Ensure output path has correct extension
     output_path = Path(output_path).expanduser().resolve()
+    if format == "svg" and not output_path.suffix == ".svg":
+        output_path = output_path.with_suffix(".svg")
+    elif format == "png" and not output_path.suffix == ".png":
+        output_path = output_path.with_suffix(".png")
 
     with tempfile.NamedTemporaryFile("w+", suffix=".d2", delete=False) as tmp:
         tmp.write(d2_diagram)
@@ -176,69 +181,17 @@ def _export_to_svg(d2_diagram: str, output_path: str | Path = "diagram.svg") -> 
     return output_path
 
 
-def generate_diagram(ip_network: str, hosts_list: str) -> str:
+def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False) -> str:
     """
-    Generate a network diagram in SVG format for Gradio UI.
+    Generate a network diagram in PNG or SVG format.
 
     Args:
         ip_network (str): Network IP with mask in CIDR format (e.g., "192.168.1.0/24")
         hosts_list (str): Comma-separated list of host counts per subnet (e.g., "50,20,10,5")
+        use_svg (bool): Whether to generate SVG format (default: PNG)
 
     Returns:
-        str: Path to the generated SVG file for Gradio Image component
-    """
-    try:
-        # Parse hosts list
-        hosts_per_subnet = [int(h.strip()) for h in hosts_list.split(",") if h.strip()]
-        
-        if not hosts_per_subnet:
-            raise ValueError("No valid host counts provided")
-
-        # Generate basic diagram
-        base_diagram = _generate_basic_d2_diagram(ip_network.strip(), hosts_per_subnet)
-        
-        # Add styling
-        styled_diagram = _style_d2_diagram(base_diagram)
-        
-        # Export to SVG
-        output_path = _export_to_svg(styled_diagram, "network_diagram.svg")
-        
-        return str(output_path)
-        
-    except Exception as e:
-        # Create a simple error diagram for Gradio to display
-        error_diagram = f"""
-Internet: Cloud {{
-  style: {{
-    font-color: red
-  }}
-}}
-Error: Error occurred: {str(e)[:50]}... {{
-  style: {{
-    font-color: red
-    font-size: 20
-  }}
-}}
-Internet -> Error
-"""
-        try:
-            error_path = _export_to_svg(error_diagram, "error_diagram.svg")
-            return str(error_path)
-        except:
-            # If even error diagram fails, return None
-            return None
-
-
-def generate_diagram_mcp(ip_network: str, hosts_list: str) -> str:
-    """
-    Generate a network diagram in SVG format for MCP API.
-
-    Args:
-        ip_network (str): Network IP with mask in CIDR format (e.g., "192.168.1.0/24")
-        hosts_list (str): Comma-separated list of host counts per subnet (e.g., "50,20,10,5")
-
-    Returns:
-        str: Result information in JSON format including SVG path or error
+        str: Result information in JSON format including image path or error
     """
     try:
         # Parse hosts list
@@ -253,12 +206,15 @@ def generate_diagram_mcp(ip_network: str, hosts_list: str) -> str:
         # Add styling
         styled_diagram = _style_d2_diagram(base_diagram)
         
-        # Export to SVG
-        output_path = _export_to_svg(styled_diagram, "network_diagram.svg")
+        # Export to image
+        format = "svg" if use_svg else "png"
+        filename = f"network_diagram.{format}"
+        output_path = _export_to_image(styled_diagram, filename, format)
         
         result = {
             "success": True,
-            "svg_path": str(output_path),
+            "image_path": str(output_path),
+            "format": format,
             "network": ip_network.strip(),
             "hosts_per_subnet": hosts_per_subnet,
             "d2_diagram": styled_diagram

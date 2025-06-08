@@ -4,74 +4,50 @@ Gradio UI for IPMentor.
 
 import gradio as gr
 import json
-from .core import analyze_ip, calculate_subnets
-from .tools import generate_diagram, generate_diagram_mcp
+from .tools import generate_diagram as generate_diagram_core, ip_info, subnet_calculator
 from .config import APP_NAME
 
-
-
-
-# MCP Tool Functions
-def ip_info(ip: str, subnet_mask: str) -> str:
+def generate_diagram(ip_network: str, hosts_list: str, use_svg: str = "false") -> str:
     """
-    Analyze a complete IPv4 address with its subnet mask.
+    Generate a network diagram in PNG or SVG format.
     
     Args:
-        ip (str): IP address in decimal (192.168.1.10) or binary format
-        subnet_mask (str): Subnet mask in decimal (255.255.255.0), CIDR (/24), or number (24) format
+        ip_network (str): Network IP with mask in CIDR format (e.g., "192.168.1.0/24")
+        hosts_list (str): Comma-separated list of host counts per subnet (e.g., "50,20,10,5")
+        use_svg (str): Whether to generate SVG format ("true" or "false", default: "false")
     
     Returns:
-        str: Complete IP and network information in JSON format
+        str: Network diagram information in JSON format
     """
     try:
-        result = analyze_ip(ip.strip(), subnet_mask.strip())
-        return json.dumps(result, indent=2)
+        use_svg_bool = use_svg.lower() == "true"
+        result = generate_diagram_core(ip_network.strip(), hosts_list.strip(), use_svg_bool)
+        return result
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
 
-def subnet_calculator(network: str, number: str, division_type: str, hosts_per_subnet: str = "") -> str:
+def generate_diagram_wrapper(ip_network: str, hosts_list: str, use_svg: bool = False):
     """
-    Calculate subnets using different division methods.
+    Generate a network diagram for Gradio UI.
     
     Args:
-        network (str): Main network in CIDR format (e.g., "192.168.1.0/24")
-        number (str): Number for division calculation
-        division_type (str): Division method - "max_subnets", "max_hosts_per_subnet", or "vlsm"
-        hosts_per_subnet (str): Comma-separated host counts per subnet (VLSM only)
+        ip_network (str): Network IP with mask in CIDR format (e.g., "192.168.1.0/24")
+        hosts_list (str): Comma-separated list of host counts per subnet (e.g., "50,20,10,5")
+        use_svg (bool): Whether to generate SVG format (default: PNG)
     
     Returns:
-        str: Calculated subnet information in JSON format
+        str: Path to the generated image file for Gradio Image component
     """
-    try:
-        number_int = int(number.strip())
-        result = calculate_subnets(
-            network.strip(), 
-            number_int, 
-            division_type.strip(), 
-            hosts_per_subnet.strip()
-        )
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-# MCP API function for diagram generation  
-def generate_diagram_api(ip_network: str, hosts_list: str) -> str:
-    """MCP API wrapper for diagram generation that returns JSON."""
-    return generate_diagram_mcp(ip_network, hosts_list)
-
-
-# Gradio UI wrapper for diagram generation
-def generate_diagram_ui(ip_network: str, hosts_list: str):
-    """Gradio UI wrapper for diagram generation that handles errors gracefully."""
     try:
         if not ip_network.strip() or not hosts_list.strip():
             return None
-        result = generate_diagram(ip_network, hosts_list)
-        return result
+        result_json = generate_diagram_core(ip_network.strip(), hosts_list.strip(), use_svg)
+        result = json.loads(result_json)
+        if "error" in result:
+            return None
+        return result.get("image_path")
     except Exception as e:
-        # Return None if there's any error - Gradio will handle this gracefully
         return None
 
 
@@ -106,22 +82,23 @@ def create_interface():
     )
     
     diagram_interface = gr.Interface(
-        fn=generate_diagram_ui,
+        fn=generate_diagram_wrapper,
         api_name="generate_diagram",
         inputs=[
             gr.Textbox(label="Network", placeholder="192.168.1.0/24"),
-            gr.Textbox(label="Hosts per Subnet", placeholder="50,20,10,5")
+            gr.Textbox(label="Hosts per Subnet", placeholder="50,20,10,5"),
+            gr.Checkbox(label="Generate as SVG", value=False)
         ],
         outputs=gr.Image(label="Network Diagram", type="filepath"),
         title="Network Diagram Generator",
-        description="Generate network diagrams with SVG output"
+        description="Generate network diagrams (PNG by default, SVG optional)"
     )
     
     # Combine all the MCP tool interfaces
     combined_app = gr.TabbedInterface(
         [ip_interface, subnet_interface, diagram_interface],
         ["IP Info", "Subnet Calculator", "Network Diagram"],
-        title=f"{APP_NAME} - MCP Tools"
+        title=f"{APP_NAME}"
     )
     
     return combined_app
