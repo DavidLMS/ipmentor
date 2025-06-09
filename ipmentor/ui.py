@@ -57,7 +57,7 @@ def create_interface():
         api_name="subnet_calculator",
         inputs=[
             gr.Textbox(label="Network", placeholder="192.168.1.0/24"),
-            gr.Textbox(label="Number", placeholder="4"),
+            gr.Textbox(label="Number", placeholder="4", value=""),
             gr.Dropdown(label="Division Type", choices=["max_subnets","max_hosts_per_subnet","vlsm"], value="max_subnets"),
             gr.Textbox(label="Hosts per Subnet", placeholder="100,50,25,10", value="")
         ],

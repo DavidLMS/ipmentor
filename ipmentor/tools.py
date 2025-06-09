@@ -100,7 +100,6 @@ def analyze_ip(ip: str, subnet_mask: str) -> Dict:
     except Exception as e:
         return {"error": str(e)}
 
-
 def calculate_subnets(network: str, number: int, method: str, hosts_list: str = "") -> Dict:
     """Calculate subnets using different methods."""
     try:
@@ -269,7 +268,6 @@ def calculate_subnets(network: str, number: int, method: str, hosts_list: str = 
     except Exception as e:
         return {"error": str(e)}
 
-
 def ip_info(ip: str, subnet_mask: str) -> str:
     """
     Analyze a complete IPv4 address with its subnet mask.
@@ -302,7 +300,13 @@ def subnet_calculator(network: str, number: str = "0", division_type: str = "max
         str: Calculated subnet information in JSON format
     """
     try:
-        number_int = int(number.strip())
+        # Handle empty number parameter (especially for VLSM)
+        number_str = number.strip()
+        if number_str == "":
+            number_int = 0  # Use 0 as default when number is not provided
+        else:
+            number_int = int(number_str)
+            
         result = calculate_subnets(
             network.strip(), 
             number_int, 
@@ -352,64 +356,75 @@ def _generate_basic_d2_diagram(network_ip: str, hosts_per_subnet: List[int]) -> 
         lines.pop()
     return "\n".join(lines)
 
-
 def _style_d2_diagram(diagram: str) -> str:
-    """Add styling and icons to D2 diagram."""
-    styled = []
-    for line in diagram.splitlines():
+  """Add styling and icons to D2 diagram."""
+  styled = []
+  for line in diagram.splitlines():
 
-        if not line.strip():
-            styled.append("")
-            continue
+      if not line.strip():
+          styled.append("")
+          continue
 
-        # Nodes
-        node_match = re.match(r'^(\w+(?:_\d+)?):\s*(Cloud|Router|Switch|Hosts)\s*$', line.strip())
-        if node_match:
-            name, kind = node_match.groups()
-            styled.append(
-                f"{name}: {kind} {{\n"
-                "  style: {\n"
-                "    font-color: transparent\n"
-                "  }\n"
-                "  shape: image\n"
-                f"  icon: {ICON_MAP[kind]}\n"
-                "}"
-            )
-            continue
+      # Nodes
+      node_match = re.match(r'^(\w+(?:_\d+)?):\s*(Cloud|Router|Switch|Hosts)\s*$',line.strip())
+      if node_match:
+          name, kind = node_match.groups()
+          styled.append(
+              f"{name}: {kind} {{\n"
+              "  style: {\n"
+              "    font-color: transparent\n"
+              "  }\n"
+              "  shape: image\n"
+              f"  icon: {ICON_MAP[kind]}\n"
+              "}"
+          )
+          continue
 
-        # Edges with labels
-        edge_with_label_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?):\s*"([^"]+)"$', line.strip())
-        if edge_with_label_match:
-            src, dst, label = edge_with_label_match.groups()
-            styled.append(
-                f'{src} -> {dst}: "{label}" {{\n'
-                f"{EDGE_STYLE_BASE}"
-                "    font-size: 30\n"
-                "  }\n"
-                "}"
-            )
-            continue
+      # Edges with labels
+      edge_with_label_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?):\s*"([^"]+)"$', line.strip())
+      if edge_with_label_match:
+          src, dst, label = edge_with_label_match.groups()
+          styled.append(
+              f'{src} -> {dst}: "{label}" {{\n'
+              f"{EDGE_STYLE_BASE}"
+              "    font-size: 30\n"
+              "  }\n"
+              "}"
+          )
+          continue
 
-        # Edges without labels
-        edge_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?)$', line.strip())
-        if edge_match:
-            src, dst = edge_match.groups()
-            styled.append(
-                f"{src} -> {dst}: {{\n"
-                f"{EDGE_STYLE_BASE}"
-                "  }\n"
-                "}"
-            )
-            continue
+      # Edges without labels
+      edge_match = re.match(r'^(\w+(?:_\d+)?) -> (\w+(?:_\d+)?)$',line.strip())
+      if edge_match:
+          src, dst = edge_match.groups()
+          styled.append(
+              f"{src} -> {dst}: {{\n"
+              f"{EDGE_STYLE_BASE}"
+              "  }\n"
+              "}"
+          )
+          continue
 
-        styled.append(line)
+      styled.append(line)
 
-    return "\n".join(styled)
-
+  return "\n".join(styled)
 
 def _export_to_image(d2_diagram: str, output_path: str | Path = "diagram.png", format: str = "png") -> Path:
     """Export D2 diagram to PNG or SVG using d2 CLI."""
-    if shutil.which("d2") is None:
+    # Try to find d2 binary in different locations
+    d2_binary = None
+    
+    # First try local binary relative to project root
+    script_dir = Path(__file__).parent.parent  # Go up from ipmentor/tools.py to project root
+    local_d2 = script_dir / "bin" / "d2"
+    if local_d2.exists() and local_d2.is_file():
+        d2_binary = str(local_d2)
+    
+    # Fallback to system d2
+    elif shutil.which("d2") is not None:
+        d2_binary = "d2"
+    
+    if d2_binary is None:
         raise RuntimeError(
             "D2 executable not found.\n"
             "Install it from https://d2lang.com/tour/installation "
@@ -429,7 +444,7 @@ def _export_to_image(d2_diagram: str, output_path: str | Path = "diagram.png", f
         tmp_path = Path(tmp.name)
 
     try:
-        cmd = ["d2", str(tmp_path), str(output_path)]
+        cmd = [d2_binary, str(tmp_path), str(output_path)]
         subprocess.run(cmd, check=True)
     finally:
         if tmp_path.exists():
@@ -451,10 +466,8 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False) ->
         str: Result information in JSON format including image path or error
     """
     try:
-        # Handle string boolean values from JSON (MCP tools often pass strings)
         if isinstance(use_svg, str):
             use_svg = use_svg.lower() in ('true', '1', 'yes', 'on')
-        
         # Parse hosts list
         hosts_per_subnet = [int(h.strip()) for h in hosts_list.split(",") if h.strip()]
         
