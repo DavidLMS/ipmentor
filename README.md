@@ -82,16 +82,6 @@ Add to your Claude Desktop configuration:
 - "Create 8 subnets from 10.0.0.0/16"
 - "Design VLSM for networks needing 100, 50, and 25 hosts"
 
-## 🐳 Docker
-
-```bash
-# Build image
-docker build -t ipmentor .
-
-# Run container
-docker run -p 7861:7861 ipmentor
-```
-
 ## 📖 Usage Examples
 
 ### IP Analysis
@@ -120,11 +110,9 @@ python -m pytest tests/
 ipmentor/
 ├── ipmentor/
 │   ├── main.py      # Entry point
-│   ├── core.py      # IPv4 functions
-│   ├── tools.py     # MCP tools
+│   ├── tools.py     # Tools
 │   ├── ui.py        # Gradio interface
 │   └── config.py    # Configuration
-├── tests/           # Test suite
 ├── requirements.txt # Dependencies
 └── README.md       # This file
 ```
