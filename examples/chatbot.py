@@ -32,7 +32,7 @@ SHOW_TOOLS = True  # True: shows tool details, False: only typing and response
 def load_system_prompt():
     """Load the system prompt from an external .md file."""
     try:
-        with open("experimental/system_prompt.md", "r", encoding="utf-8") as f:
+        with open("examples/chatbot_system_prompt.md", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         print("Warning: experimental/system_prompt.md not found, using default prompt")
