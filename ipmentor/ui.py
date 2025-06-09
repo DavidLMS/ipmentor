@@ -94,10 +94,6 @@ def create_interface():
         - **IP Info**: Analyze IPv4 addresses with subnet masks, supporting decimal, binary, and CIDR formats
         - **Subnet Calculator**: Calculate subnets using different methods (max subnets, max hosts per subnet, and VLSM)
         - **Network Diagram**: Generate visual network diagrams with automatic subnet validation
-                    
-        <a href="https://github.com/DavidLMS/ipmentor" target="_blank">Project on GitHub</a>
-                    
-        <a href="https://huggingface.co/spaces/DavidLMS/ipmentor-demo" target="_blank">Client demo</a>
         
         Choose a tab below to get started with your networking calculations and visualizations.
         """)
