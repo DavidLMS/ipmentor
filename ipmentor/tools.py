@@ -174,8 +174,12 @@ def calculate_subnets(network: str, number: int, method: str, hosts_list: str = 
             # Parse hosts requirements
             hosts_requirements = [int(x.strip()) for x in hosts_list.split(',')]
             
-            if len(hosts_requirements) != number:
-                raise ValueError(f"Need exactly {number} host values")
+            # For VLSM, always use the number calculated from hosts_list
+            calculated_number = len(hosts_requirements)
+            if number == 0 or number != calculated_number:
+                if number != 0:
+                    print(f"VLSM: Using calculated number {calculated_number} from hosts_list instead of provided number {number}")
+                number = calculated_number
             
             # Sort largest first for optimal allocation
             sorted_reqs = sorted(enumerate(hosts_requirements), key=lambda x: x[1], reverse=True)
@@ -284,15 +288,15 @@ def ip_info(ip: str, subnet_mask: str) -> str:
         return json.dumps({"error": str(e)}, indent=2)
 
 
-def subnet_calculator(network: str, number: str, division_type: str, hosts_per_subnet: str = "") -> str:
+def subnet_calculator(network: str, number: str = "0", division_type: str = "max_subnets", hosts_per_subnet: str = "") -> str:
     """
     Calculate subnets using different division methods.
 
     Args:
         network (str): Main network in CIDR format (e.g., "192.168.1.0/24")
-        number (str): Number for division calculation
+        number (str): Number for division calculation (optional for VLSM, auto-calculated from hosts_per_subnet)
         division_type (str): Division method - "max_subnets", "max_hosts_per_subnet", or "vlsm"
-        hosts_per_subnet (str): Comma-separated host counts per subnet (VLSM only)
+        hosts_per_subnet (str): Comma-separated host counts per subnet (required for VLSM)
 
     Returns:
         str: Calculated subnet information in JSON format
@@ -447,6 +451,10 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False) ->
         str: Result information in JSON format including image path or error
     """
     try:
+        # Handle string boolean values from JSON (MCP tools often pass strings)
+        if isinstance(use_svg, str):
+            use_svg = use_svg.lower() in ('true', '1', 'yes', 'on')
+        
         # Parse hosts list
         hosts_per_subnet = [int(h.strip()) for h in hosts_list.split(",") if h.strip()]
         

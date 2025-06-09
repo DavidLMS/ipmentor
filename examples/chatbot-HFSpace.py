@@ -1,9 +1,11 @@
 """
-IPMentor - IPv4 Networking Assistant with MCP Integration
+IPMentor Chatbot Demo - Hugging Face Space Client
 
-An experimental chatbot interface that demonstrates IPMentor's networking tools
-through the Model Context Protocol (MCP), providing conversational access to
-IP analysis, subnet calculations, and network diagram generation.
+This is a demo MCP client that connects to the IPMentor Space at 
+https://davidlms-ipmentor.hf.space to showcase conversational IPv4 networking
+assistance using the Model Context Protocol (MCP). 
+
+Powered by Mistral Small 3.1 24B Instruct model.
 """
 
 import asyncio
@@ -29,13 +31,16 @@ load_dotenv()
 # Control whether to show tool execution details
 SHOW_TOOLS = True  # True: shows tool details, False: only typing and response
 
+# Fixed MCP server URL for the demo
+DEMO_MCP_SERVER_URL = "https://davidlms-ipmentor.hf.space/gradio_api/mcp/sse"
+
 def load_system_prompt():
     """Load the system prompt from an external .md file."""
     try:
         with open("examples/chatbot_system_prompt.md", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        print("Warning: experimental/system_prompt.md not found, using default prompt")
+        print("Warning: examples/chatbot_system_prompt.md not found, using default prompt")
         return "You are an IPv4 networking assistant specialized in subnetting calculations and network analysis."
 
 SYSTEM_PROMPT = load_system_prompt()
@@ -84,6 +89,7 @@ class MCPClientWrapper:
         self.mcp_client = None
         self.tools = []
         self.connection_status = "Disconnected"
+        self.server_url = DEMO_MCP_SERVER_URL
         
         # Configure OpenAI client for OpenRouter
         self.openai_client = OpenAI(
@@ -92,19 +98,16 @@ class MCPClientWrapper:
         )
         self.model_name = "mistralai/mistral-small-3.1-24b-instruct"
     
-    async def connect_async(self, server_url: str) -> str:
-        """Connect to MCP server via SSE"""
+    async def connect_async(self) -> str:
+        """Connect to the demo MCP server"""
         try:
-            print(f"Attempting to connect to: {server_url}")
-            
-            # Store server URL for later use
-            self.server_url = server_url
+            print(f"Attempting to connect to demo server: {self.server_url}")
             
             # Configure MCP client
             self.mcp_client = MultiServerMCPClient({
                 "ipmentor": {
                     "transport": "sse",
-                    "url": server_url
+                    "url": self.server_url
                 }
             })
             
@@ -159,7 +162,7 @@ class MCPClientWrapper:
             
             tool_names = [tool["function"]["name"] for tool in self.tools]
             self.connection_status = "Connected"
-            return f"✅ Connected to MCP server. Available tools: {', '.join(tool_names)}"
+            return f"✅ Connected to IPMentor demo server. Available tools: {', '.join(tool_names)}"
             
         except Exception as e:
             print(f"Detailed connection error: {type(e).__name__}: {str(e)}")
@@ -168,12 +171,12 @@ class MCPClientWrapper:
             self.connection_status = "Error"
             return f"❌ Connection error: {str(e)}"
     
-    def connect(self, server_url: str) -> str:
+    def connect(self) -> str:
         """Synchronous wrapper for connecting"""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(self.connect_async(server_url))
+            result = loop.run_until_complete(self.connect_async())
             return result
         finally:
             loop.close()
@@ -265,9 +268,13 @@ class MCPClientWrapper:
     
     async def process_message_async(self, message: str, history) -> Generator:
         """Process message using OpenAI + MCP tools with agentic loop"""
+        # Auto-connect if not connected
         if self.connection_status != "Connected":
-            yield history + [{"role": "assistant", "content": "❌ Please connect to the MCP server first."}]
-            return
+            print("Auto-connecting to demo server...")
+            connect_result = await self.connect_async()
+            if self.connection_status != "Connected":
+                yield history + [{"role": "assistant", "content": f"❌ Failed to connect to demo server: {connect_result}"}]
+                return
         
         # Create base history with user message included
         current_history = history[:] + [{"role": "user", "content": message}]
@@ -586,40 +593,35 @@ async def bot(history):
 def gradio_interface():
     with gr.Blocks(title="IPMentor Chatbot Demo") as demo:
         # Header with logo
-        gr.Image("assets/header.png", show_label=False, interactive=False, container=False, height=120)
+        gr.Image("https://huggingface.co/spaces/davidlms/ipmentor/resolve/main/assets/header.png", show_label=False, interactive=False, container=False, height=120)
         
         # Description
         gr.Markdown("""
-        **IPMentor** is a conversational IPv4 networking assistant powered by MCP (Model Context Protocol).
+        **IPMentor Chatbot Demo** - MCP Client Example
         
-        Connect to the MCP server and chat with the specialized assistant for IP analysis, subnet calculations, and network diagram generation.
+        This is a demo MCP (Model Context Protocol) client that connects to the **IPMentor Space** at 
+        [https://davidlms-ipmentor.hf.space](https://davidlms-ipmentor.hf.space) to showcase conversational 
+        IPv4 networking assistance.
         
-        Choose the tools you need through natural conversation - the assistant will use the appropriate networking tools automatically.
+        **Features:**
+        - 🤖 **AI Model**: Mistral Small 3.1 24B Instruct 
+        - 🔧 **Tools**: IP analysis, subnet calculations, and network diagram generation
+        
+        **Getting Started:** Just start chatting! The system will automatically connect to the IPMentor server 
+        and provide access to professional networking tools through natural conversation.
         """)
         
-        with gr.Row(equal_height=True):
-            with gr.Column(scale=3):
-                server_url = gr.Textbox(
-                    label="MCP Server URL (SSE)",
-                    placeholder="http://localhost:7860/gradio_api/mcp/sse",
-                    value="http://localhost:7860/gradio_api/mcp/sse"
-                )
-            with gr.Column(scale=1):
-                connect_btn = gr.Button("🔌 Connect", variant="primary")
-        
+        # Tools toggle only (no connection UI)
         with gr.Row():
-            with gr.Column(scale=1):
-                tools_toggle = gr.Checkbox(
-                    label="Show tool calls",
-                    value=SHOW_TOOLS,
-                    info="Shows details of the tools used"
-                )
-            with gr.Column(scale=3):
-                status = gr.Textbox(label="Connection Status", interactive=False)
+            tools_toggle = gr.Checkbox(
+                label="Show tool execution details",
+                value=SHOW_TOOLS,
+                info="Shows detailed information about tool calls and parameters"
+            )
         
         chatbot = gr.Chatbot(
             value=[], 
-            height=600,
+            height=400,
             type="messages",
             show_copy_button=True,
             show_label=False
@@ -650,8 +652,7 @@ def gradio_interface():
         )
         
         # Event handlers
-        connect_btn.click(client.connect, inputs=server_url, outputs=status)
-        tools_toggle.change(toggle_tools_display, inputs=tools_toggle, outputs=status)
+        tools_toggle.change(toggle_tools_display, inputs=tools_toggle, outputs=[])
         
         # Message sending (correct Gradio pattern)
         msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
@@ -675,4 +676,4 @@ if __name__ == "__main__":
         print("ℹ️  Info: OPENROUTER_BASE_URL not configured, using default URL")
     
     interface = gradio_interface()
-    interface.launch(debug=True, share=False, server_port=7880)
+    interface.launch(debug=True, share=False)
