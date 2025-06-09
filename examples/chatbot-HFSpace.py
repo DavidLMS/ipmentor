@@ -37,7 +37,7 @@ DEMO_MCP_SERVER_URL = "https://davidlms-ipmentor.hf.space/gradio_api/mcp/sse"
 def load_system_prompt():
     """Load the system prompt from an external .md file."""
     try:
-        with open("examples/chatbot_system_prompt.md", "r", encoding="utf-8") as f:
+        with open("chatbot_system_prompt.md", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         print("Warning: examples/chatbot_system_prompt.md not found, using default prompt")
