@@ -93,32 +93,7 @@ The application will be available at `http://localhost:7860` with MCP server ena
 
 ### For AI Integration
 
-See the **[chatbot demo](https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor-demo)** for an example of how AI agents can use IPMentor tools through MCP for conversational network assistance.
-
-## Example Use Cases
-
-### Subnet Calculation Verification
-
-```python
-# AI agent uses IPMentor to verify calculations
-result = await subnet_calculator(
-    network="192.168.1.0/24",
-    number="4", 
-    division_type="max_subnets"
-)
-# Returns verified subnet information for 4 equal subnets
-```
-
-### Network Diagram Generation
-
-```python
-# Create visual diagrams for complex network designs
-diagram = await generate_diagram(
-    ip_network="10.0.0.0/16",
-    hosts_list="1000,500,250,100"
-)
-# Generates network topology diagram with VLSM subnets
-```
+See the **[chatbot demo](https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor-demo)** for an example of how AI agents can use IPMentor tools through MCP for conversational network assistance. You could use any MCP Client as Claude Desktop, Cursor or Cline.
 
 ## Integration with LearnMCP-xAPI
 
