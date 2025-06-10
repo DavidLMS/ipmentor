@@ -30,6 +30,8 @@ Built for the [**Gradio MCP Hackathon 2025**](https://huggingface.co/Agents-MCP-
     <a href="https://github.com/DavidLMS/ipmentor/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%5BREQUEST%5D">Request Feature</a>
   </p>
 
+[![Demo GIF](assets/ipmentor-demo.gif)](assets/ipmentor-demo.mp4)
+
 ## Why IPMentor?
 
 ### The Problem with AI-Only Network Tutoring
