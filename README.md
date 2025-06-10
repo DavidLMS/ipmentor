@@ -143,7 +143,7 @@ IPMentor is built with:
 
 Contributions are welcome! Whether you're improving calculations, enhancing visualizations, or adding new educational features, your input helps make networking education more effective.
 
-Please see our [contribution guidelines](CONTRIBUTING.md) and feel free to open issues or pull requests.
+Please see our [contribution guidelines](CONTRIBUTING) and feel free to open issues or pull requests.
 
 ## License
 
