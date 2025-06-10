@@ -19,9 +19,7 @@
 Built for the [**Gradio MCP Hackathon 2025**](https://huggingface.co/Agents-MCP-Hackathon), IPMentor demonstrates how the Model Context Protocol (MCP) can bridge AI tutoring systems with specialized computational tools, creating more reliable and affordable educational experiences.
 
 > **🔗 Try it now:**  
-
 > **[Live Demo](https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor)** - Interactive web interface (is a MCP Server!) 
-
 > **[AI Chatbot Demo](https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor-demo)** - Conversational AI using IPMentor tools with Mistral Small 3.1 24B as LLM
 
 <p align="center">
