@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Romero Santos"
+  given-names: "David"
+title: "IPMentor: IPv4 networking toolkit for AI tutoring systems"
+date-released: 2025-06-10
+url: "https://github.com/DavidLMS/ipmentor"
+repository-code: "https://github.com/DavidLMS/ipmentor"
+abstract: "IPMentor provides verified IPv4 networking calculation tools designed for AI tutoring systems. Built with MCP (Model Context Protocol) support, it enables cost-effective educational AI by allowing smaller models to focus on pedagogy while delegating precise subnet calculations to dedicated, verified algorithms."
+keywords:
+  - ipv4
+  - networking
+  - subnet-calculations
+  - ai-tutoring
+  - model-context-protocol
+  - mcp
+  - educational-technology
+  - gradio
+  - network-diagrams
+  - cidr
+license: MIT
