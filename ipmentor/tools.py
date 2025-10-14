@@ -197,76 +197,85 @@ def calculate_subnets(network: str, number: int, method: str, hosts_list: str = 
                     bits_for_hosts = math.ceil(math.log2(hosts_needed + 2))
                     required_cidr = 32 - bits_for_hosts
                 
-                # Find a suitable available network
+                # Find the smallest suitable available network (best fit)
                 allocated = False
+                best_fit_idx = None
+                best_fit_net = None
+
                 for i, avail_net in enumerate(available_networks):
                     # Check if we can fit the required subnet in this available network
                     if required_cidr >= avail_net.prefixlen:
-                        # Allocate the first subnet of the required size
-                        try:
-                            allocated_subnet = list(avail_net.subnets(new_prefix=required_cidr))[0]
-                        except ValueError:
-                            # Cannot create subnet of this size
-                            continue
-                        
-                        # Calculate actual host capacity
-                        if required_cidr == 32:
-                            actual_hosts = 1
-                            first_host = str(allocated_subnet.network_address)
-                            last_host = str(allocated_subnet.network_address)
-                        elif required_cidr == 31:
-                            actual_hosts = 2
-                            first_host = str(allocated_subnet.network_address)
-                            last_host = str(allocated_subnet.broadcast_address)
-                        else:
-                            actual_hosts = 2 ** (32 - required_cidr) - 2
-                            first_host = str(allocated_subnet.network_address + 1)
-                            last_host = str(allocated_subnet.broadcast_address - 1)
-                        
-                        subnets.append({
-                            "subnet": str(allocated_subnet),
-                            "network": str(allocated_subnet.network_address),
-                            "broadcast": str(allocated_subnet.broadcast_address),
-                            "first_host": first_host,
-                            "last_host": last_host,
-                            "hosts": actual_hosts,
-                            "hosts_requested": hosts_needed,
-                            "original_order": original_idx + 1
-                        })
-                        
-                        # Remove the used network
-                        available_networks.pop(i)
+                        # This network can fit our subnet
+                        # Choose the smallest one (best fit) to minimize fragmentation
+                        if best_fit_net is None or avail_net.prefixlen > best_fit_net.prefixlen:
+                            best_fit_idx = i
+                            best_fit_net = avail_net
 
-                        # Calculate the remaining space after the allocated subnet
-                        # This ensures contiguous allocation
-                        next_address = allocated_subnet.broadcast_address + 1
-                        if next_address <= avail_net.broadcast_address:
-                            # There is space remaining after the allocated subnet
-                            remaining_end = int(avail_net.broadcast_address)
+                if best_fit_net is not None:
+                    # Allocate the first subnet of the required size from best fit network
+                    try:
+                        allocated_subnet = list(best_fit_net.subnets(new_prefix=required_cidr))[0]
+                    except ValueError:
+                        # Cannot create subnet of this size (shouldn't happen)
+                        raise ValueError(f"Cannot allocate subnet for {hosts_needed} hosts")
 
-                            # Calculate the prefix length for the remaining space
-                            # We need to find blocks that fit in the remaining space
-                            current_addr = next_address
-                            while current_addr <= avail_net.broadcast_address:
-                                # Find the largest block that:
-                                # 1. Starts at current_addr
-                                # 2. Fits within the remaining space
-                                max_prefix = 32
-                                addr_int = int(current_addr)
-                                for prefix in range(avail_net.prefixlen, 33):
-                                    block_size = 2 ** (32 - prefix)
-                                    # Check if block is aligned and fits
-                                    if addr_int % block_size == 0 and addr_int + block_size - 1 <= remaining_end:
-                                        max_prefix = prefix
-                                        break
+                    # Calculate actual host capacity
+                    if required_cidr == 32:
+                        actual_hosts = 1
+                        first_host = str(allocated_subnet.network_address)
+                        last_host = str(allocated_subnet.network_address)
+                    elif required_cidr == 31:
+                        actual_hosts = 2
+                        first_host = str(allocated_subnet.network_address)
+                        last_host = str(allocated_subnet.broadcast_address)
+                    else:
+                        actual_hosts = 2 ** (32 - required_cidr) - 2
+                        first_host = str(allocated_subnet.network_address + 1)
+                        last_host = str(allocated_subnet.broadcast_address - 1)
 
-                                # Create the network block
-                                remaining_block = ipaddress.IPv4Network(f"{current_addr}/{max_prefix}", strict=False)
-                                available_networks.append(remaining_block)
-                                current_addr = remaining_block.broadcast_address + 1
-                        
-                        allocated = True
-                        break
+                    subnets.append({
+                        "subnet": str(allocated_subnet),
+                        "network": str(allocated_subnet.network_address),
+                        "broadcast": str(allocated_subnet.broadcast_address),
+                        "first_host": first_host,
+                        "last_host": last_host,
+                        "hosts": actual_hosts,
+                        "hosts_requested": hosts_needed,
+                        "original_order": original_idx + 1
+                    })
+
+                    # Remove the used network
+                    available_networks.pop(best_fit_idx)
+
+                    # Calculate the remaining space after the allocated subnet
+                    # This ensures contiguous allocation
+                    next_address = allocated_subnet.broadcast_address + 1
+                    if next_address <= best_fit_net.broadcast_address:
+                        # There is space remaining after the allocated subnet
+                        remaining_end = int(best_fit_net.broadcast_address)
+
+                        # Calculate the prefix length for the remaining space
+                        # We need to find blocks that fit in the remaining space
+                        current_addr = next_address
+                        while current_addr <= best_fit_net.broadcast_address:
+                            # Find the largest block that:
+                            # 1. Starts at current_addr
+                            # 2. Fits within the remaining space
+                            max_prefix = 32
+                            addr_int = int(current_addr)
+                            for prefix in range(best_fit_net.prefixlen, 33):
+                                block_size = 2 ** (32 - prefix)
+                                # Check if block is aligned and fits
+                                if addr_int % block_size == 0 and addr_int + block_size - 1 <= remaining_end:
+                                    max_prefix = prefix
+                                    break
+
+                            # Create the network block
+                            remaining_block = ipaddress.IPv4Network(f"{current_addr}/{max_prefix}", strict=False)
+                            available_networks.append(remaining_block)
+                            current_addr = remaining_block.broadcast_address + 1
+
+                    allocated = True
                 
                 if not allocated:
                     raise ValueError(f"Cannot allocate subnet for {hosts_needed} hosts")
