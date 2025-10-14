@@ -236,15 +236,34 @@ def calculate_subnets(network: str, number: int, method: str, hosts_list: str = 
                         
                         # Remove the used network
                         available_networks.pop(i)
-                        
-                        # Add remaining available spaces by splitting the original network
-                        remaining_subnets = []
-                        for subnet in avail_net.subnets(new_prefix=required_cidr):
-                            if subnet != allocated_subnet:
-                                remaining_subnets.append(subnet)
-                        
-                        # Add the remaining subnets back to available networks
-                        available_networks.extend(remaining_subnets)
+
+                        # Calculate the remaining space after the allocated subnet
+                        # This ensures contiguous allocation
+                        next_address = allocated_subnet.broadcast_address + 1
+                        if next_address <= avail_net.broadcast_address:
+                            # There is space remaining after the allocated subnet
+                            remaining_end = int(avail_net.broadcast_address)
+
+                            # Calculate the prefix length for the remaining space
+                            # We need to find blocks that fit in the remaining space
+                            current_addr = next_address
+                            while current_addr <= avail_net.broadcast_address:
+                                # Find the largest block that:
+                                # 1. Starts at current_addr
+                                # 2. Fits within the remaining space
+                                max_prefix = 32
+                                addr_int = int(current_addr)
+                                for prefix in range(avail_net.prefixlen, 33):
+                                    block_size = 2 ** (32 - prefix)
+                                    # Check if block is aligned and fits
+                                    if addr_int % block_size == 0 and addr_int + block_size - 1 <= remaining_end:
+                                        max_prefix = prefix
+                                        break
+
+                                # Create the network block
+                                remaining_block = ipaddress.IPv4Network(f"{current_addr}/{max_prefix}", strict=False)
+                                available_networks.append(remaining_block)
+                                current_addr = remaining_block.broadcast_address + 1
                         
                         allocated = True
                         break
