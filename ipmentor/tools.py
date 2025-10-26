@@ -536,6 +536,166 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False) ->
         }
         
         return json.dumps(result, indent=2)
-        
+
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
+
+
+def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> str:
+    """
+    Generate a random subnetting exercise that is solvable.
+
+    Args:
+        num_subnets (int): Number of subnets required
+        use_vlsm (bool): If True, each subnet has different host requirements (VLSM)
+                        If False, equal division of subnets
+
+    Returns:
+        str: Exercise specification in JSON format
+    """
+    import random
+
+    try:
+        if num_subnets < 1:
+            return json.dumps({"error": "Number of subnets must be at least 1"}, indent=2)
+
+        if num_subnets > 256:
+            return json.dumps({"error": "Number of subnets too large (max 256)"}, indent=2)
+
+        # Generate random base network
+        # Use common private network ranges
+        network_classes = [
+            ("10.0.0.0", 8),
+            ("172.16.0.0", 12),
+            ("192.168.0.0", 16)
+        ]
+
+        # Select random network class
+        base_ip, base_bits = random.choice(network_classes)
+
+        # For the exercise, we want a manageable network size
+        # Choose CIDR between base_bits and 28 (to have room for subnetting)
+        if use_vlsm:
+            # For VLSM, we need more space to accommodate different sized subnets
+            # Use networks between /16 and /24 to have good variety
+            available_cidrs = list(range(max(16, base_bits), 25))
+        else:
+            # For equal division, we need to ensure we have enough bits
+            # Calculate minimum CIDR needed for num_subnets
+            bits_needed = math.ceil(math.log2(num_subnets))
+            min_cidr = base_bits + bits_needed
+            # Choose CIDR that leaves room for subnetting
+            available_cidrs = list(range(max(16, base_bits), min(28, 32 - bits_needed)))
+
+        if not available_cidrs:
+            return json.dumps({
+                "error": f"Cannot generate exercise: too many subnets requested ({num_subnets})"
+            }, indent=2)
+
+        network_cidr = random.choice(available_cidrs)
+
+        # Generate random network within the base network
+        base_network = ipaddress.IPv4Network(f"{base_ip}/{base_bits}")
+        available_subnets = list(base_network.subnets(new_prefix=network_cidr))
+        selected_network = random.choice(available_subnets)
+        network_str = str(selected_network)
+
+        exercise = {
+            "network": str(selected_network.network_address),
+            "mask": f"/{network_cidr}",
+            "mask_decimal": str(selected_network.netmask),
+            "num_subnets": num_subnets,
+            "type": "VLSM" if use_vlsm else "Equal Division"
+        }
+
+        # Generate host requirements
+        if use_vlsm:
+            # Generate random host requirements for each subnet
+            # Try multiple times to find a valid configuration
+            max_attempts = 100
+            valid_config = False
+
+            for attempt in range(max_attempts):
+                # Calculate available host space in the network
+                total_addresses = 2 ** (32 - network_cidr)
+
+                # Generate random host counts that should fit
+                # Use a variety of sizes for interesting exercises
+                host_sizes = []
+                remaining_space = total_addresses
+
+                for i in range(num_subnets):
+                    if i == num_subnets - 1:
+                        # Last subnet: use reasonable remaining space
+                        max_hosts = min(remaining_space // 2, 1000)
+                    else:
+                        # Not last: use a fraction of remaining space
+                        max_hosts = min(remaining_space // (num_subnets - i + 1), 1000)
+
+                    if max_hosts < 2:
+                        max_hosts = 2
+
+                    # Generate random size with bias towards smaller networks
+                    # Use power law distribution for more realistic scenarios
+                    host_count = random.randint(2, max(2, int(max_hosts ** 0.7)))
+                    host_sizes.append(host_count)
+
+                    # Account for network overhead (network + broadcast addresses)
+                    bits_for_hosts = math.ceil(math.log2(host_count + 2))
+                    subnet_size = 2 ** bits_for_hosts
+                    remaining_space -= subnet_size
+
+                # Validate with calculate_subnets
+                hosts_list = ",".join(str(h) for h in host_sizes)
+                validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
+
+                if "error" not in validation:
+                    valid_config = True
+                    exercise["hosts_per_subnet"] = host_sizes
+                    exercise["hosts_list"] = hosts_list
+                    break
+
+            if not valid_config:
+                # Fallback to simpler configuration
+                # Use powers of 2 for easier calculation
+                host_sizes = [2 ** random.randint(1, min(6, 32 - network_cidr - 2)) for _ in range(num_subnets)]
+                host_sizes.sort(reverse=True)  # Sort largest first
+                hosts_list = ",".join(str(h) for h in host_sizes)
+
+                validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
+                if "error" in validation:
+                    return json.dumps({
+                        "error": f"Could not generate valid VLSM exercise: {validation['error']}"
+                    }, indent=2)
+
+                exercise["hosts_per_subnet"] = host_sizes
+                exercise["hosts_list"] = hosts_list
+        else:
+            # Equal division - validate with max_subnets method
+            validation = calculate_subnets(network_str, num_subnets, "max_subnets", "")
+
+            if "error" in validation:
+                return json.dumps({
+                    "error": f"Could not generate valid exercise: {validation['error']}"
+                }, indent=2)
+
+            exercise["hosts_per_subnet"] = validation["hosts_per_subnet"]
+
+        # Add instructions
+        if use_vlsm:
+            exercise["instructions"] = (
+                f"Divide the network {exercise['network']}{exercise['mask']} into {num_subnets} subnets "
+                f"with the following host requirements: {exercise['hosts_list']}. "
+                "Use VLSM to optimize address space usage."
+            )
+        else:
+            exercise["instructions"] = (
+                f"Divide the network {exercise['network']}{exercise['mask']} into {num_subnets} "
+                "equal-sized subnets. Calculate the subnet mask, network address, broadcast address, "
+                "and usable host range for each subnet."
+            )
+
+        return json.dumps(exercise, indent=2)
+
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)

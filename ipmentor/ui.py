@@ -4,7 +4,12 @@ Gradio UI for IPMentor.
 
 import gradio as gr
 import json
-from .tools import generate_diagram as generate_diagram_core, ip_info, subnet_calculator
+from .tools import (
+    generate_diagram as generate_diagram_core,
+    ip_info,
+    subnet_calculator,
+    generate_subnetting_exercise as generate_exercise_core
+)
 
 def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False):
     """
@@ -34,6 +39,31 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False):
         
     except Exception as e:
         return None, f"❌ Error: {str(e)}"
+
+
+def generate_exercise(num_subnets: str, use_vlsm: bool = False):
+    """
+    Generate a subnetting exercise.
+
+    Args:
+        num_subnets (str): Number of subnets to generate
+        use_vlsm (bool): Whether to use VLSM (different host counts per subnet)
+
+    Returns:
+        str: Exercise specification in JSON format
+    """
+    try:
+        num_subnets_int = int(num_subnets.strip())
+        if num_subnets_int < 1:
+            return json.dumps({"error": "Number of subnets must be at least 1"}, indent=2)
+
+        result_json = generate_exercise_core(num_subnets_int, use_vlsm)
+        return result_json
+
+    except ValueError:
+        return json.dumps({"error": "Invalid number of subnets"}, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
 
 
 def create_interface():
@@ -81,7 +111,19 @@ def create_interface():
         title="Network Diagram Generator",
         description="Generate network diagrams (PNG by default, SVG optional)"
     )
-    
+
+    exercise_interface = gr.Interface(
+        fn=generate_exercise,
+        api_name="generate_exercise",
+        inputs=[
+            gr.Textbox(label="Number of Subnets", placeholder="4", value="4"),
+            gr.Checkbox(label="Use VLSM (Variable Length Subnet Mask)", value=False)
+        ],
+        outputs=gr.Textbox(label="Exercise", lines=20, interactive=False),
+        title="Subnetting Exercise Generator",
+        description="Generate random subnetting exercises. Enable VLSM for variable host requirements per subnet, or disable for equal division."
+    )
+
     # Create main interface with custom header and description
     with gr.Blocks() as combined_app:
         # Header with logo
@@ -89,12 +131,13 @@ def create_interface():
         
         # Description
         gr.Markdown("""
-        **IPMentor** is a comprehensive IPv4 networking toolkit that provides three powerful tools:
-        
+        **IPMentor** is a comprehensive IPv4 networking toolkit that provides four powerful tools:
+
         - **IP Info**: Analyze IPv4 addresses with subnet masks, supporting decimal, binary, and CIDR formats
         - **Subnet Calculator**: Calculate subnets using different methods (max subnets, max hosts per subnet, and VLSM)
         - **Network Diagram**: Generate visual network diagrams with automatic subnet validation
-        
+        - **Exercise Generator**: Generate random subnetting exercises for practice and learning
+
         Choose a tab below to get started with your networking calculations and visualizations.
         """)
         
@@ -106,5 +149,7 @@ def create_interface():
                 subnet_interface.render()
             with gr.Tab("Network Diagram"):
                 diagram_interface.render()
+            with gr.Tab("Exercise Generator"):
+                exercise_interface.render()
     
     return combined_app
