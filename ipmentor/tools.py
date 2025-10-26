@@ -562,12 +562,7 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
         if num_subnets > 256:
             return json.dumps({"error": "Number of subnets too large (max 256)"}, indent=2)
 
-        # Generate random network from private IP ranges
-        # RFC 1918 Private Address Spaces:
-        # - 10.0.0.0/8 (10.0.0.0 - 10.255.255.255)
-        # - 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
-        # - 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
-
+        # RFC 1918 Private Address Spaces
         private_ranges = [
             ("10.0.0.0", "10.255.255.255"),
             ("172.16.0.0", "172.31.255.255"),
@@ -579,131 +574,126 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
         start_int = int(ipaddress.IPv4Address(range_start))
         end_int = int(ipaddress.IPv4Address(range_end))
 
-        # Determine CIDR range based on exercise type
+        # Determine initial CIDR range
         if use_vlsm:
-            # For VLSM, use networks between /16 and /24 for variety
-            min_cidr = 16
-            max_cidr = 24
+            initial_min_cidr = 16
+            initial_max_cidr = 24
         else:
-            # For equal division, calculate minimum bits needed
             bits_needed = math.ceil(math.log2(num_subnets))
-            # Ensure we have enough bits for subnetting
-            # Use networks between /16 and /28, but ensure we can subnet
-            min_cidr = 16
-            max_cidr = min(28, 32 - bits_needed - 1)
+            initial_min_cidr = 16
+            initial_max_cidr = min(28, 32 - bits_needed - 1)
 
-        if min_cidr > max_cidr:
+        if initial_min_cidr > initial_max_cidr:
             return json.dumps({
                 "error": f"Cannot generate exercise: too many subnets requested ({num_subnets})"
             }, indent=2)
 
-        # Generate random CIDR
-        network_cidr = random.randint(min_cidr, max_cidr)
+        # Start with random CIDR in the desired range
+        initial_cidr = random.randint(initial_min_cidr, initial_max_cidr)
 
-        # Generate random IP within the selected private range
-        # Ensure the IP aligns with the network boundary for the selected CIDR
-        block_size = 2 ** (32 - network_cidr)
+        # Intelligent retry: try increasing network sizes until we find a valid one
+        # Start from initial_cidr and go down to initial_min_cidr (larger networks)
+        for network_cidr in range(initial_cidr, initial_min_cidr - 1, -1):
+            # Generate random IP within the selected private range
+            block_size = 2 ** (32 - network_cidr)
 
-        # Calculate valid starting positions (must be aligned to block_size)
-        first_valid_block = ((start_int + block_size - 1) // block_size) * block_size
-        last_valid_block = (end_int // block_size) * block_size
+            # Calculate valid starting positions (must be aligned to block_size)
+            first_valid_block = ((start_int + block_size - 1) // block_size) * block_size
+            last_valid_block = (end_int // block_size) * block_size
 
-        if first_valid_block > last_valid_block:
-            # Fallback: use the range start aligned to block size if no valid blocks
-            network_int = first_valid_block if first_valid_block <= end_int else start_int
-        else:
-            # Random aligned block within range
-            num_blocks = (last_valid_block - first_valid_block) // block_size + 1
-            random_block = random.randint(0, num_blocks - 1)
-            network_int = first_valid_block + (random_block * block_size)
+            if first_valid_block > last_valid_block:
+                network_int = first_valid_block if first_valid_block <= end_int else start_int
+            else:
+                num_blocks = (last_valid_block - first_valid_block) // block_size + 1
+                random_block = random.randint(0, num_blocks - 1)
+                network_int = first_valid_block + (random_block * block_size)
 
-        # Create the network
-        random_ip = str(ipaddress.IPv4Address(network_int))
-        selected_network = ipaddress.IPv4Network(f"{random_ip}/{network_cidr}", strict=False)
-        network_str = str(selected_network)
+            # Create the network
+            random_ip = str(ipaddress.IPv4Address(network_int))
+            selected_network = ipaddress.IPv4Network(f"{random_ip}/{network_cidr}", strict=False)
+            network_str = str(selected_network)
 
-        exercise = {
-            "network": str(selected_network.network_address),
-            "mask": f"/{network_cidr}",
-            "mask_decimal": str(selected_network.netmask),
-            "num_subnets": num_subnets,
-            "type": "VLSM" if use_vlsm else "Equal Division"
-        }
+            # Try to generate a valid exercise with this network
+            if use_vlsm:
+                # Try multiple host combinations for VLSM
+                max_host_attempts = 50
 
-        # Generate host requirements
-        if use_vlsm:
-            # Generate random host requirements for each subnet
-            # Try multiple times to find a valid configuration
-            max_attempts = 100
-            valid_config = False
+                for attempt in range(max_host_attempts):
+                    total_addresses = 2 ** (32 - network_cidr)
+                    host_sizes = []
+                    remaining_space = total_addresses
 
-            for attempt in range(max_attempts):
-                # Calculate available host space in the network
-                total_addresses = 2 ** (32 - network_cidr)
+                    for i in range(num_subnets):
+                        if i == num_subnets - 1:
+                            max_hosts = min(remaining_space // 2, 1000)
+                        else:
+                            max_hosts = min(remaining_space // (num_subnets - i + 1), 1000)
 
-                # Generate random host counts that should fit
-                # Use a variety of sizes for interesting exercises
-                host_sizes = []
-                remaining_space = total_addresses
+                        if max_hosts < 2:
+                            max_hosts = 2
 
-                for i in range(num_subnets):
-                    if i == num_subnets - 1:
-                        # Last subnet: use reasonable remaining space
-                        max_hosts = min(remaining_space // 2, 1000)
-                    else:
-                        # Not last: use a fraction of remaining space
-                        max_hosts = min(remaining_space // (num_subnets - i + 1), 1000)
+                        host_count = random.randint(2, max(2, int(max_hosts ** 0.7)))
+                        host_sizes.append(host_count)
 
-                    if max_hosts < 2:
-                        max_hosts = 2
+                        bits_for_hosts = math.ceil(math.log2(host_count + 2))
+                        subnet_size = 2 ** bits_for_hosts
+                        remaining_space -= subnet_size
 
-                    # Generate random size with bias towards smaller networks
-                    # Use power law distribution for more realistic scenarios
-                    host_count = random.randint(2, max(2, int(max_hosts ** 0.7)))
-                    host_sizes.append(host_count)
+                    # Validate with calculate_subnets
+                    hosts_list = ",".join(str(h) for h in host_sizes)
+                    validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
 
-                    # Account for network overhead (network + broadcast addresses)
-                    bits_for_hosts = math.ceil(math.log2(host_count + 2))
-                    subnet_size = 2 ** bits_for_hosts
-                    remaining_space -= subnet_size
+                    if "error" not in validation:
+                        # Success! Return the exercise
+                        return json.dumps({
+                            "network": str(selected_network.network_address),
+                            "mask": f"/{network_cidr}",
+                            "mask_decimal": str(selected_network.netmask),
+                            "num_subnets": num_subnets,
+                            "type": "VLSM",
+                            "hosts_per_subnet": host_sizes,
+                            "hosts_list": hosts_list
+                        }, indent=2)
 
-                # Validate with calculate_subnets
-                hosts_list = ",".join(str(h) for h in host_sizes)
-                validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
+                # If we couldn't find valid hosts with random generation, try fallback
+                if network_cidr >= 18:  # Only try fallback for reasonable network sizes
+                    max_power = min(6, 32 - network_cidr - 2)
+                    if max_power >= 1:
+                        host_sizes = [2 ** random.randint(1, max_power) for _ in range(num_subnets)]
+                        host_sizes.sort(reverse=True)
+                        hosts_list = ",".join(str(h) for h in host_sizes)
+
+                        validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
+                        if "error" not in validation:
+                            return json.dumps({
+                                "network": str(selected_network.network_address),
+                                "mask": f"/{network_cidr}",
+                                "mask_decimal": str(selected_network.netmask),
+                                "num_subnets": num_subnets,
+                                "type": "VLSM",
+                                "hosts_per_subnet": host_sizes,
+                                "hosts_list": hosts_list
+                            }, indent=2)
+
+            else:
+                # Equal division - validate directly
+                validation = calculate_subnets(network_str, num_subnets, "max_subnets", "")
 
                 if "error" not in validation:
-                    valid_config = True
-                    exercise["hosts_per_subnet"] = host_sizes
-                    exercise["hosts_list"] = hosts_list
-                    break
-
-            if not valid_config:
-                # Fallback to simpler configuration
-                # Use powers of 2 for easier calculation
-                host_sizes = [2 ** random.randint(1, min(6, 32 - network_cidr - 2)) for _ in range(num_subnets)]
-                host_sizes.sort(reverse=True)  # Sort largest first
-                hosts_list = ",".join(str(h) for h in host_sizes)
-
-                validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
-                if "error" in validation:
+                    # Success! Return the exercise
                     return json.dumps({
-                        "error": f"Could not generate valid VLSM exercise: {validation['error']}"
+                        "network": str(selected_network.network_address),
+                        "mask": f"/{network_cidr}",
+                        "mask_decimal": str(selected_network.netmask),
+                        "num_subnets": num_subnets,
+                        "type": "Equal Division",
+                        "hosts_per_subnet": validation["hosts_per_subnet"]
                     }, indent=2)
 
-                exercise["hosts_per_subnet"] = host_sizes
-                exercise["hosts_list"] = hosts_list
-        else:
-            # Equal division - validate with max_subnets method
-            validation = calculate_subnets(network_str, num_subnets, "max_subnets", "")
-
-            if "error" in validation:
-                return json.dumps({
-                    "error": f"Could not generate valid exercise: {validation['error']}"
-                }, indent=2)
-
-            exercise["hosts_per_subnet"] = validation["hosts_per_subnet"]
-
-        return json.dumps(exercise, indent=2)
+        # If we exhausted all network sizes, return error
+        return json.dumps({
+            "error": f"Could not generate valid exercise after trying multiple network sizes"
+        }, indent=2)
 
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
