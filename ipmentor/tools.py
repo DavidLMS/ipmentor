@@ -563,11 +563,33 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
             return json.dumps({"error": "Number of subnets too large (max 256)"}, indent=2)
 
         # Generate random base network
-        # Use common private network ranges
+        # Use common private network ranges with variety
         network_classes = [
+            # 10.0.0.0/8 range
             ("10.0.0.0", 8),
+            ("10.0.0.0", 16),
+            ("10.1.0.0", 16),
+            ("10.10.0.0", 16),
+            ("10.20.0.0", 16),
+            ("10.50.0.0", 16),
+            ("10.100.0.0", 16),
+            ("10.200.0.0", 16),
+            # 172.16.0.0/12 range (172.16.0.0 - 172.31.255.255)
             ("172.16.0.0", 12),
-            ("192.168.0.0", 16)
+            ("172.16.0.0", 16),
+            ("172.17.0.0", 16),
+            ("172.20.0.0", 16),
+            ("172.25.0.0", 16),
+            ("172.30.0.0", 16),
+            ("172.31.0.0", 16),
+            # 192.168.0.0/16 range
+            ("192.168.0.0", 16),
+            ("192.168.0.0", 24),
+            ("192.168.1.0", 24),
+            ("192.168.10.0", 24),
+            ("192.168.50.0", 24),
+            ("192.168.100.0", 24),
+            ("192.168.200.0", 24),
         ]
 
         # Select random network class
@@ -680,20 +702,6 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
                 }, indent=2)
 
             exercise["hosts_per_subnet"] = validation["hosts_per_subnet"]
-
-        # Add instructions
-        if use_vlsm:
-            exercise["instructions"] = (
-                f"Divide the network {exercise['network']}{exercise['mask']} into {num_subnets} subnets "
-                f"with the following host requirements: {exercise['hosts_list']}. "
-                "Use VLSM to optimize address space usage."
-            )
-        else:
-            exercise["instructions"] = (
-                f"Divide the network {exercise['network']}{exercise['mask']} into {num_subnets} "
-                "equal-sized subnets. Calculate the subnet mask, network address, broadcast address, "
-                "and usable host range for each subnet."
-            )
 
         return json.dumps(exercise, indent=2)
 
