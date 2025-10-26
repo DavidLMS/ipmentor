@@ -562,64 +562,64 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
         if num_subnets > 256:
             return json.dumps({"error": "Number of subnets too large (max 256)"}, indent=2)
 
-        # Generate random base network
-        # Use common private network ranges with variety
-        network_classes = [
-            # 10.0.0.0/8 range
-            ("10.0.0.0", 8),
-            ("10.0.0.0", 16),
-            ("10.1.0.0", 16),
-            ("10.10.0.0", 16),
-            ("10.20.0.0", 16),
-            ("10.50.0.0", 16),
-            ("10.100.0.0", 16),
-            ("10.200.0.0", 16),
-            # 172.16.0.0/12 range (172.16.0.0 - 172.31.255.255)
-            ("172.16.0.0", 12),
-            ("172.16.0.0", 16),
-            ("172.17.0.0", 16),
-            ("172.20.0.0", 16),
-            ("172.25.0.0", 16),
-            ("172.30.0.0", 16),
-            ("172.31.0.0", 16),
-            # 192.168.0.0/16 range
-            ("192.168.0.0", 16),
-            ("192.168.0.0", 24),
-            ("192.168.1.0", 24),
-            ("192.168.10.0", 24),
-            ("192.168.50.0", 24),
-            ("192.168.100.0", 24),
-            ("192.168.200.0", 24),
+        # Generate random network from private IP ranges
+        # RFC 1918 Private Address Spaces:
+        # - 10.0.0.0/8 (10.0.0.0 - 10.255.255.255)
+        # - 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+        # - 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
+
+        private_ranges = [
+            ("10.0.0.0", "10.255.255.255"),
+            ("172.16.0.0", "172.31.255.255"),
+            ("192.168.0.0", "192.168.255.255")
         ]
 
-        # Select random network class
-        base_ip, base_bits = random.choice(network_classes)
+        # Select a random private range
+        range_start, range_end = random.choice(private_ranges)
+        start_int = int(ipaddress.IPv4Address(range_start))
+        end_int = int(ipaddress.IPv4Address(range_end))
 
-        # For the exercise, we want a manageable network size
-        # Choose CIDR between base_bits and 28 (to have room for subnetting)
+        # Determine CIDR range based on exercise type
         if use_vlsm:
-            # For VLSM, we need more space to accommodate different sized subnets
-            # Use networks between /16 and /24 to have good variety
-            available_cidrs = list(range(max(16, base_bits), 25))
+            # For VLSM, use networks between /16 and /24 for variety
+            min_cidr = 16
+            max_cidr = 24
         else:
-            # For equal division, we need to ensure we have enough bits
-            # Calculate minimum CIDR needed for num_subnets
+            # For equal division, calculate minimum bits needed
             bits_needed = math.ceil(math.log2(num_subnets))
-            min_cidr = base_bits + bits_needed
-            # Choose CIDR that leaves room for subnetting
-            available_cidrs = list(range(max(16, base_bits), min(28, 32 - bits_needed)))
+            # Ensure we have enough bits for subnetting
+            # Use networks between /16 and /28, but ensure we can subnet
+            min_cidr = 16
+            max_cidr = min(28, 32 - bits_needed - 1)
 
-        if not available_cidrs:
+        if min_cidr > max_cidr:
             return json.dumps({
                 "error": f"Cannot generate exercise: too many subnets requested ({num_subnets})"
             }, indent=2)
 
-        network_cidr = random.choice(available_cidrs)
+        # Generate random CIDR
+        network_cidr = random.randint(min_cidr, max_cidr)
 
-        # Generate random network within the base network
-        base_network = ipaddress.IPv4Network(f"{base_ip}/{base_bits}")
-        available_subnets = list(base_network.subnets(new_prefix=network_cidr))
-        selected_network = random.choice(available_subnets)
+        # Generate random IP within the selected private range
+        # Ensure the IP aligns with the network boundary for the selected CIDR
+        block_size = 2 ** (32 - network_cidr)
+
+        # Calculate valid starting positions (must be aligned to block_size)
+        first_valid_block = ((start_int + block_size - 1) // block_size) * block_size
+        last_valid_block = (end_int // block_size) * block_size
+
+        if first_valid_block > last_valid_block:
+            # Fallback: use the range start aligned to block size if no valid blocks
+            network_int = first_valid_block if first_valid_block <= end_int else start_int
+        else:
+            # Random aligned block within range
+            num_blocks = (last_valid_block - first_valid_block) // block_size + 1
+            random_block = random.randint(0, num_blocks - 1)
+            network_int = first_valid_block + (random_block * block_size)
+
+        # Create the network
+        random_ip = str(ipaddress.IPv4Address(network_int))
+        selected_network = ipaddress.IPv4Network(f"{random_ip}/{network_cidr}", strict=False)
         network_str = str(selected_network)
 
         exercise = {
