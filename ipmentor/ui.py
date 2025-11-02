@@ -125,7 +125,7 @@ def create_interface():
             gr.Textbox(label="Complete Exercise (Problem + Solution)", lines=30, interactive=False)
         ],
         title="Subnetting Exercise Generator",
-        description="Generate complete random subnetting exercises with solution and diagram. Number of subnets (2-8) is randomly chosen. Enable VLSM for variable host requirements per subnet, or disable for equal division."
+        description="Generate complete random subnetting exercises with solution and diagram. Number of subnets (2-32) is randomly chosen. Enable VLSM for variable host requirements per subnet, or disable for equal division."
     )
 
     # Create main interface with custom header and description
