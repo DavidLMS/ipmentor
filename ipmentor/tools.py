@@ -10,6 +10,7 @@ import shutil
 import os
 import ipaddress
 import math
+import random
 from pathlib import Path
 from typing import List, Dict, Tuple
 
@@ -553,8 +554,6 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
     Returns:
         str: Exercise specification in JSON format
     """
-    import random
-
     try:
         if num_subnets < 1:
             return json.dumps({"error": "Number of subnets must be at least 1"}, indent=2)
@@ -576,10 +575,14 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
 
         # Determine initial CIDR range
         if use_vlsm:
+            # For VLSM: use networks between /16 (65536 hosts) and /24 (256 hosts)
+            # This provides good variety while keeping exercises manageable
             initial_min_cidr = 16
             initial_max_cidr = 24
         else:
             bits_needed = math.ceil(math.log2(num_subnets))
+            # For equal division: /16 minimum for variety
+            # /28 maximum (or less if more subnets needed) to avoid tiny networks
             initial_min_cidr = 16
             initial_max_cidr = min(28, 32 - bits_needed - 1)
 
@@ -616,6 +619,7 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
             # Try to generate a valid exercise with this network
             if use_vlsm:
                 # Try multiple host combinations for VLSM
+                # 50 attempts per network size balances success rate vs performance
                 max_host_attempts = 50
 
                 for attempt in range(max_host_attempts):
@@ -625,13 +629,19 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
 
                     for i in range(num_subnets):
                         if i == num_subnets - 1:
+                            # Last subnet: use up to half remaining space
+                            # Cap at 1000 hosts to keep exercises reasonable
                             max_hosts = min(remaining_space // 2, 1000)
                         else:
+                            # Distribute remaining space across remaining subnets
+                            # Cap at 1000 hosts to avoid overly large subnets
                             max_hosts = min(remaining_space // (num_subnets - i + 1), 1000)
 
                         if max_hosts < 2:
                             max_hosts = 2
 
+                        # Use power law (0.7) to bias toward smaller, more realistic subnets
+                        # This creates more varied and interesting exercises
                         host_count = random.randint(2, max(2, int(max_hosts ** 0.7)))
                         host_sizes.append(host_count)
 
@@ -656,11 +666,14 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
                         }, indent=2)
 
                 # If we couldn't find valid hosts with random generation, try fallback
-                if network_cidr >= 18:  # Only try fallback for reasonable network sizes
+                # Only try fallback for /18 or larger (at least 16384 addresses)
+                if network_cidr >= 18:
+                    # Use powers of 2 for host counts (2, 4, 8, 16, 32, 64...)
+                    # Max power of 6 = 64 hosts, keeps exercises simple
                     max_power = min(6, 32 - network_cidr - 2)
                     if max_power >= 1:
                         host_sizes = [2 ** random.randint(1, max_power) for _ in range(num_subnets)]
-                        host_sizes.sort(reverse=True)
+                        host_sizes.sort(reverse=True)  # Largest first for better VLSM allocation
                         hosts_list = ",".join(str(h) for h in host_sizes)
 
                         validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
