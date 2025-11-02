@@ -542,24 +542,96 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False) ->
         return json.dumps({"error": str(e)}, indent=2)
 
 
-def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> str:
+def _build_complete_exercise(network: str, mask: str, mask_decimal: str, num_subnets: int,
+                             exercise_type: str, hosts_per_subnet, hosts_list: str = "") -> str:
     """
-    Generate a random subnetting exercise that is solvable.
+    Build a complete exercise with solution and diagram.
 
     Args:
-        num_subnets (int): Number of subnets required
+        network: Network address
+        mask: CIDR mask (e.g., "/24")
+        mask_decimal: Decimal mask (e.g., "255.255.255.0")
+        num_subnets: Number of subnets
+        exercise_type: "VLSM" or "Equal Division"
+        hosts_per_subnet: List of host counts (VLSM) or single count (Equal)
+        hosts_list: Comma-separated string of hosts (for VLSM)
+
+    Returns:
+        JSON string with exercise, solution, and diagram
+    """
+    try:
+        network_str = f"{network}{mask}"
+
+        # Build exercise object
+        exercise = {
+            "network": network,
+            "mask": mask,
+            "mask_decimal": mask_decimal,
+            "num_subnets": num_subnets,
+            "type": exercise_type
+        }
+
+        if exercise_type == "VLSM":
+            exercise["hosts_per_subnet"] = hosts_per_subnet
+            exercise["hosts_list"] = hosts_list
+        else:
+            exercise["hosts_per_subnet"] = hosts_per_subnet
+
+        # Calculate solution
+        if exercise_type == "VLSM":
+            solution = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
+        else:
+            solution = calculate_subnets(network_str, num_subnets, "max_subnets", "")
+
+        # Generate diagram (optional - may fail if d2 not installed)
+        diagram_path = None
+        try:
+            if exercise_type == "VLSM":
+                diagram_result_json = generate_diagram(network_str, hosts_list, False)
+            else:
+                # For equal division, create hosts list from solution
+                hosts_count = solution.get("hosts_per_subnet", 0)
+                hosts_list_for_diagram = ",".join([str(hosts_count)] * num_subnets)
+                diagram_result_json = generate_diagram(network_str, hosts_list_for_diagram, False)
+
+            # Parse diagram result (it's a JSON string)
+            diagram_result = json.loads(diagram_result_json)
+            if diagram_result.get("success"):
+                diagram_path = diagram_result.get("image_path")
+        except Exception:
+            # Diagram generation failed (e.g., d2 not installed) - continue without it
+            pass
+
+        # Build complete result
+        result = {
+            "exercise": exercise,
+            "solution": solution,
+            "diagram_path": diagram_path
+        }
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": f"Failed to build complete exercise: {str(e)}"}, indent=2)
+
+
+def generate_subnetting_exercise(use_vlsm: bool = False) -> str:
+    """
+    Generate a complete random subnetting exercise with solution and diagram.
+
+    Args:
         use_vlsm (bool): If True, each subnet has different host requirements (VLSM)
                         If False, equal division of subnets
 
     Returns:
-        str: Exercise specification in JSON format
+        str: Complete exercise in JSON format including:
+             - exercise: network, mask, num_subnets, hosts requirements
+             - solution: calculated subnets with all details
+             - diagram_path: path to generated network diagram
     """
     try:
-        if num_subnets < 1:
-            return json.dumps({"error": "Number of subnets must be at least 1"}, indent=2)
-
-        if num_subnets > 256:
-            return json.dumps({"error": "Number of subnets too large (max 256)"}, indent=2)
+        # Generate random number of subnets (2-8 for reasonable exercises)
+        num_subnets = random.randint(2, 8)
 
         # RFC 1918 Private Address Spaces
         private_ranges = [
@@ -654,16 +726,16 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
                     validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
 
                     if "error" not in validation:
-                        # Success! Return the exercise
-                        return json.dumps({
-                            "network": str(selected_network.network_address),
-                            "mask": f"/{network_cidr}",
-                            "mask_decimal": str(selected_network.netmask),
-                            "num_subnets": num_subnets,
-                            "type": "VLSM",
-                            "hosts_per_subnet": host_sizes,
-                            "hosts_list": hosts_list
-                        }, indent=2)
+                        # Success! Build complete exercise with solution and diagram
+                        return _build_complete_exercise(
+                            str(selected_network.network_address),
+                            f"/{network_cidr}",
+                            str(selected_network.netmask),
+                            num_subnets,
+                            "VLSM",
+                            host_sizes,
+                            hosts_list
+                        )
 
                 # If we couldn't find valid hosts with random generation, try fallback
                 # Only try fallback for /18 or larger (at least 16384 addresses)
@@ -678,30 +750,31 @@ def generate_subnetting_exercise(num_subnets: int, use_vlsm: bool = False) -> st
 
                         validation = calculate_subnets(network_str, num_subnets, "vlsm", hosts_list)
                         if "error" not in validation:
-                            return json.dumps({
-                                "network": str(selected_network.network_address),
-                                "mask": f"/{network_cidr}",
-                                "mask_decimal": str(selected_network.netmask),
-                                "num_subnets": num_subnets,
-                                "type": "VLSM",
-                                "hosts_per_subnet": host_sizes,
-                                "hosts_list": hosts_list
-                            }, indent=2)
+                            return _build_complete_exercise(
+                                str(selected_network.network_address),
+                                f"/{network_cidr}",
+                                str(selected_network.netmask),
+                                num_subnets,
+                                "VLSM",
+                                host_sizes,
+                                hosts_list
+                            )
 
             else:
                 # Equal division - validate directly
                 validation = calculate_subnets(network_str, num_subnets, "max_subnets", "")
 
                 if "error" not in validation:
-                    # Success! Return the exercise
-                    return json.dumps({
-                        "network": str(selected_network.network_address),
-                        "mask": f"/{network_cidr}",
-                        "mask_decimal": str(selected_network.netmask),
-                        "num_subnets": num_subnets,
-                        "type": "Equal Division",
-                        "hosts_per_subnet": validation["hosts_per_subnet"]
-                    }, indent=2)
+                    # Success! Build complete exercise with solution and diagram
+                    return _build_complete_exercise(
+                        str(selected_network.network_address),
+                        f"/{network_cidr}",
+                        str(selected_network.netmask),
+                        num_subnets,
+                        "Equal Division",
+                        validation["hosts_per_subnet"],
+                        ""
+                    )
 
         # If we exhausted all network sizes, return error
         return json.dumps({

@@ -41,29 +41,31 @@ def generate_diagram(ip_network: str, hosts_list: str, use_svg: bool = False):
         return None, f"❌ Error: {str(e)}"
 
 
-def generate_exercise(num_subnets: str, use_vlsm: bool = False):
+def generate_exercise(use_vlsm: bool = False):
     """
-    Generate a subnetting exercise.
+    Generate a complete subnetting exercise with solution and diagram.
 
     Args:
-        num_subnets (str): Number of subnets to generate
         use_vlsm (bool): Whether to use VLSM (different host counts per subnet)
 
     Returns:
-        str: Exercise specification in JSON format
+        tuple: (diagram_path, exercise_and_solution_json) for Gradio outputs
     """
     try:
-        num_subnets_int = int(num_subnets.strip())
-        if num_subnets_int < 1:
-            return json.dumps({"error": "Number of subnets must be at least 1"}, indent=2)
+        result_json = generate_exercise_core(use_vlsm)
+        result = json.loads(result_json)
 
-        result_json = generate_exercise_core(num_subnets_int, use_vlsm)
-        return result_json
+        if "error" in result:
+            return None, json.dumps(result, indent=2)
 
-    except ValueError:
-        return json.dumps({"error": "Invalid number of subnets"}, indent=2)
+        # Extract diagram path
+        diagram_path = result.get("diagram_path")
+
+        # Return diagram and formatted JSON
+        return diagram_path, json.dumps(result, indent=2)
+
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return None, json.dumps({"error": str(e)}, indent=2)
 
 
 def create_interface():
@@ -116,12 +118,14 @@ def create_interface():
         fn=generate_exercise,
         api_name="generate_exercise",
         inputs=[
-            gr.Textbox(label="Number of Subnets", placeholder="4", value="4"),
             gr.Checkbox(label="Use VLSM (Variable Length Subnet Mask)", value=False)
         ],
-        outputs=gr.Textbox(label="Exercise", lines=20, interactive=False),
+        outputs=[
+            gr.Image(label="Network Diagram", type="filepath"),
+            gr.Textbox(label="Complete Exercise (Problem + Solution)", lines=30, interactive=False)
+        ],
         title="Subnetting Exercise Generator",
-        description="Generate random subnetting exercises. Enable VLSM for variable host requirements per subnet, or disable for equal division."
+        description="Generate complete random subnetting exercises with solution and diagram. Number of subnets (2-8) is randomly chosen. Enable VLSM for variable host requirements per subnet, or disable for equal division."
     )
 
     # Create main interface with custom header and description
