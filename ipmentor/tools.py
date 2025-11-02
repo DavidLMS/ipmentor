@@ -630,8 +630,15 @@ def generate_subnetting_exercise(use_vlsm: bool = False) -> str:
              - diagram_path: path to generated network diagram
     """
     try:
-        # Generate random number of subnets (2-32 for varied difficulty)
-        num_subnets = random.randint(2, 32)
+        # Generate random number of subnets with weighted distribution
+        # 60% easy (2-8), 30% medium (9-16), 10% hard (17-32)
+        rand = random.random()
+        if rand < 0.6:  # 60% probability
+            num_subnets = random.randint(2, 8)
+        elif rand < 0.9:  # 30% probability (0.6 + 0.3)
+            num_subnets = random.randint(9, 16)
+        else:  # 10% probability
+            num_subnets = random.randint(17, 32)
 
         # RFC 1918 Private Address Spaces
         private_ranges = [
