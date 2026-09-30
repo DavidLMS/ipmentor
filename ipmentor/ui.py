@@ -3,7 +3,9 @@ Gradio UI for IPMentor.
 """
 
 import gradio as gr
+import ipaddress
 import json
+import random
 from .tools import (
     generate_diagram as generate_diagram_core,
     ip_info,
@@ -66,6 +68,52 @@ def generate_exercise(use_vlsm: bool = False):
 
     except Exception as e:
         return None, json.dumps({"error": str(e)}, indent=2)
+
+
+def random_ip_and_mask():
+    """
+    Generate a random, meaningful IPv4 address and subnet mask for practice.
+
+    The address is always a usable host (never the network or broadcast
+    address) inside a private range or a public unicast range, and the mask
+    is consistent with that range. The mask is returned either in CIDR
+    notation or in dotted decimal, chosen at random.
+
+    Returns:
+        tuple: (ip_address, subnet_mask) as strings
+    """
+    # (base network, allowed prefix range) — mask never shorter than the block
+    ranges = [
+        ("10.0.0.0/8", (8, 30)),
+        ("172.16.0.0/12", (12, 30)),
+        ("192.168.0.0/16", (16, 30)),
+        ("192.168.0.0/16", (24, 30)),  # extra weight for classic /24+ LANs
+    ]
+    # Public unicast first octets (avoid 0, 10, 100.64/10, 127, 169.254, 172.16/12, 192.168, 224+)
+    public_first_octets = [o for o in range(1, 224)
+                           if o not in (10, 100, 127, 169, 172, 192)]
+
+    if random.random() < 0.75:
+        base, (pmin, pmax) = random.choice(ranges)
+        block = ipaddress.IPv4Network(base)
+    else:
+        first = random.choice(public_first_octets)
+        block = ipaddress.IPv4Network(f"{first}.0.0.0/8")
+        pmin, pmax = 8, 30
+
+    prefix = random.randint(pmin, pmax)
+    # Random subnet of the chosen size inside the block
+    subnets_in_block = 2 ** (prefix - block.prefixlen)
+    subnet_index = random.randrange(subnets_in_block)
+    subnet_int = int(block.network_address) + subnet_index * 2 ** (32 - prefix)
+    subnet = ipaddress.IPv4Network(f"{ipaddress.IPv4Address(subnet_int)}/{prefix}")
+
+    # Usable host: skip network and broadcast addresses
+    host_offset = random.randint(1, subnet.num_addresses - 2)
+    host = ipaddress.IPv4Address(int(subnet.network_address) + host_offset)
+
+    mask = f"/{prefix}" if random.random() < 0.5 else str(subnet.netmask)
+    return str(host), mask
 
 
 def create_interface():
@@ -149,6 +197,14 @@ def create_interface():
         with gr.Tabs():
             with gr.Tab("IP Info"):
                 ip_interface.render()
+                random_btn = gr.Button("🎲 Random", variant="secondary")
+                # UI-only helper: fills the inputs, hidden from the API/MCP tools
+                random_btn.click(
+                    fn=random_ip_and_mask,
+                    inputs=None,
+                    outputs=ip_interface.input_components,
+                    show_api=False,
+                )
             with gr.Tab("Subnet Calculator"):
                 subnet_interface.render()
             with gr.Tab("Network Diagram"):
