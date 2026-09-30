@@ -1,7 +1,7 @@
 ![IPMentor Header](assets/header.png)
 
 <p align="center">
-  <a href="https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor">
+  <a href="https://huggingface.co/spaces/davidlms/ipmentor">
     <img src="https://img.shields.io/badge/🤗-Demo%20Space-blue" alt="Demo Space">
   </a>
   <a href="https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor-demo">
@@ -73,7 +73,7 @@ IPMentor operates as both a standalone web application and an MCP server, making
 
 ### For Direct Use
 
-Visit the **[live demo](https://huggingface.co/spaces/Agents-MCP-Hackathon/ipmentor)** to try IPMentor's tools immediately through the web interface.
+Visit the **[live demo](https://huggingface.co/spaces/davidlms/ipmentor)** to try IPMentor's tools immediately through the web interface.
 
 ### For Local Development
 
